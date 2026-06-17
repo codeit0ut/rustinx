@@ -2,6 +2,8 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::fs;
 
+use rustinx::http::request::Request;
+
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:8080")
         .expect("Failed to bind address");
@@ -18,6 +20,15 @@ fn main() {
                 match stream.read(&mut buffer) {
                     Ok(bytes_read) => {
                         println!("Received {} bytes", bytes_read);
+                        let test = Request::parser(&buffer[..bytes_read]);
+
+                        println!("Ram Ram {}", test.method);
+                        println!("Ram Ram {}", test.path);
+                        println!("Ram Ram {}", test.version);
+
+                        for (name, value) in test.headers {
+                            println!("Ram Ram - {}: {}", name, value);
+                        }
 
                         let message = String::from_utf8_lossy(&buffer[..bytes_read]);
                         
