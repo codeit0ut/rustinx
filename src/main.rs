@@ -20,11 +20,11 @@ fn main() {
                 match stream.read(&mut buffer) {
                     Ok(bytes_read) => {
                         println!("Received {} bytes", bytes_read);
-                        let test = Request::parser(&buffer[..bytes_read]);
+                        let test = Request::parser(&buffer[..bytes_read]).unwrap();
 
-                        println!("Ram Ram {}", test.method);
+                        println!("Ram Ram {:?}", test.method);
                         println!("Ram Ram {}", test.path);
-                        println!("Ram Ram {}", test.version);
+                        println!("Ram Ram {:?}", test.version);
 
                         for (name, value) in test.headers {
                             println!("Ram Ram - {}: {}", name, value);
@@ -32,7 +32,7 @@ fn main() {
 
                         let message = String::from_utf8_lossy(&buffer[..bytes_read]);
                         
-                        println!("Message: {}", message);
+                        // println!("Message: {}", message);
 
                         let request_line = message.lines().next().unwrap();
                         let line_parts: Vec<&str> = request_line.split_whitespace().collect();
