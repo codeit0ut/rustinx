@@ -30,6 +30,15 @@ pub enum Version {
     Http11,
 }
 
+impl Version {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Version::Http10 => "HTTP/1.0",
+            Version::Http11 => "HTTP/1.1",
+        }
+    }
+}
+
 pub struct Request {
     pub method: Method,
     pub path: String,
