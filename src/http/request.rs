@@ -11,6 +11,8 @@ pub enum ParseError {
     InvalidHeader,
     MissingContentLength,
     InvalidContentLength,
+    InvalidReason,
+    InvalidStatusCode,
 }
 
 #[derive(Debug)]
@@ -177,7 +179,8 @@ fn parse_version(raw_bytes: &[u8], cursor: &mut usize) -> Result<Version, ParseE
 
 fn parse_headers(raw_bytes: &[u8], cursor: &mut usize) -> Result<HashMap<String, String>, ParseError> {
     let start = *cursor;
-    *cursor = raw_bytes.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
+    *cursor = raw_bytes.windows(4).position(|w| w == b"\r\n\r\n")
+        .ok_or(ParseError::UnexpectedEndOfRequest)?;
     let temp_headers = from_utf8(&raw_bytes[start..*cursor])
         .map_err(|_| ParseError::InvalidUtf8)?;
     let mut headers = HashMap::new(); 
