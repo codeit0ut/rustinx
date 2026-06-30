@@ -205,13 +205,13 @@ fn parse_headers(raw_bytes: &[u8], cursor: &mut usize) -> Result<HashMap<String,
 }
 
 fn parse_body(raw_bytes: &[u8], cursor: &mut usize, content_length: usize) -> Result<String, ParseError> {
-    if content_length > 0 && raw_bytes.len() < *cursor + content_length {
+    if content_length > 0 && raw_bytes.len() >= *cursor + content_length {
         let body =  from_utf8(&raw_bytes[*cursor..*cursor+content_length])
             .map_err(|_| ParseError::InvalidUtf8)?
             .to_string();
 
         Ok(body)
     } else {
-        Ok(String::new())
+        Err(ParseError::UnexpectedEndOfRequest)
     }
 }

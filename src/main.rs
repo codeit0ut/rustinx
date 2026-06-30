@@ -19,11 +19,9 @@ fn main() {
                 println!("New connection established!");
 
                 let mut buffer = [0; 1024];
-                let mut proxy_buffer = [0; 1024];
                
                 match stream.read(&mut buffer) {
                     Ok(bytes_read) => {
-                        println!("Received {} bytes", bytes_read);
                         let req = Request::parser(&buffer[..bytes_read]).unwrap();
 
                         let req_type = route_resolver(&req.path).unwrap();

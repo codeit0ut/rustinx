@@ -1,7 +1,9 @@
 use std::net::TcpStream;
 use std::io::{Write, Read};
+use std::str::from_utf8;
 
 use crate::http::request::{Request, Method, Version};
+use crate::http::response::Response;
 
 #[derive(Debug)]
 pub enum ProxyError {
@@ -97,9 +99,49 @@ pub fn write_request(upstream: &mut TcpStream, request: &Request) -> Result<(), 
 
 pub fn read_response(upstream: &mut TcpStream) -> Result<Vec<u8>, ProxyError> {
     let mut response = Vec::new();
+    let mut buffer = [0u8; 1024];
 
-    upstream.read_to_end(&mut response)
+    loop {
+        let bytes_read = upstream.read(&mut buffer)
+            .map_err(|_| ProxyError::ReadFailed)?;
+
+        if bytes_read == 0 {
+            break;
+        }
+
+        response.extend_from_slice(&buffer[..bytes_read]);
+
+        if response.windows(4).any(|w| w == b"\r\n\r\n") {
+            break;
+        }
+    }
+
+    println!("{}", from_utf8(&response).unwrap());
+
+    let headers = Response::header_parser(&response)
         .map_err(|_| ProxyError::ReadFailed)?;
+
+    let header_end = response
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .unwrap()
+        + 4;
+
+    let content_length = match headers.headers.get("Content-Length") {
+        Some(v) => v.parse().map_err(|_| ProxyError::InvalidResponse)?,
+        None => 0,
+    };
+
+    while response.len() - header_end < content_length {
+        let bytes_read = upstream.read(&mut buffer)
+            .map_err(|_| ProxyError::InvalidResponse)?;
+
+        if bytes_read == 0 {
+            return Err(ProxyError::InvalidResponse);
+        }
+
+        response.extend_from_slice(&buffer[..bytes_read]);
+    }
 
     Ok(response)
 }

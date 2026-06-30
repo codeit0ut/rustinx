@@ -86,6 +86,26 @@ impl Response {
             body,
         })
     }
+
+    pub fn header_parser(raw_bytes: &[u8]) -> Result<Self, ParseError> {
+        let mut cursor: usize = 0;
+
+        let version = parse_version(raw_bytes, &mut cursor)?;
+        let status_code = parse_status_code(raw_bytes, &mut cursor)?;
+        let reason = parse_reason(raw_bytes, &mut cursor)?;
+
+        let headers = parse_headers(raw_bytes, &mut cursor)?;
+
+        let body: Vec<u8> = Vec::new();
+
+        Ok(Response {
+            version,
+            status_code,
+            reason,
+            headers,
+            body,
+        })
+    }
 }
 
 fn parse_version(raw_bytes: &[u8], cursor: &mut usize) -> Result<Version, ParseError> {
@@ -149,7 +169,12 @@ fn parse_reason(raw_bytes: &[u8], cursor: &mut usize) -> Result<String, ParseErr
     let reason = from_utf8(&raw_bytes[start..*cursor])
         .map_err(|_| ParseError::InvalidReason)?
         .to_string();
-    *cursor += 2;
+
+    if &raw_bytes[*cursor..*cursor+4] == b"\r\n\r\n" {
+        *cursor += 0;
+    } else {
+        *cursor += 2;
+    }
     Ok(reason)
 }
 
