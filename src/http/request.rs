@@ -77,6 +77,25 @@ impl Request {
 
         Ok(Request { method, path, query, version, headers, body })
     }
+
+    pub fn header_parser(raw_bytes: &[u8]) -> Result<Self, ParseError> {
+        let mut cursor: usize = 0;
+        let mut has_query: bool = false;
+
+        let method:Method = parse_method(raw_bytes, &mut cursor)?;
+        let path: String = parse_path(raw_bytes, &mut cursor, &mut has_query)?;
+
+        let mut query: Vec<(String, Option<String>)> = vec![];
+        if has_query {
+            query = parse_query(raw_bytes, &mut cursor)?;
+        }
+
+        let version: Version = parse_version(raw_bytes, &mut cursor)?;
+        let headers: HashMap<String, String> = parse_headers(raw_bytes, &mut cursor)?;
+        let body = String::new();
+
+        Ok(Request { method, path, query, version, headers, body })
+    }
 }
 
 fn parse_method(raw_bytes: &[u8], cursor: &mut usize) -> Result<Method, ParseError> {

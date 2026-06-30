@@ -1,4 +1,4 @@
-use std::io::{Read, Write};
+use std::io::Write;
 use std::net::TcpListener;
 
 use rustinx::http::request::Request;
@@ -6,6 +6,7 @@ use rustinx::http::response::{Response, StatusCode};
 use rustinx::router::route::{RouteTarget, route_resolver};
 use rustinx::handlers::static_file;
 use rustinx::handlers::reverse_proxy::{get_connection, write_request, read_response};
+use rustinx::server::read::read_request;
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:8080")
@@ -17,71 +18,85 @@ fn main() {
         match stream {
             Ok(mut stream) => {
                 println!("New connection established!");
+                loop {
 
-                let mut buffer = [0; 1024];
-               
-                match stream.read(&mut buffer) {
-                    Ok(bytes_read) => {
-                        let req = Request::parser(&buffer[..bytes_read]).unwrap();
+                    // let mut buffer = [0; 1024];
+                    let mut connection = String::from("keep-alive");
 
-                        let req_type = route_resolver(&req.path).unwrap();
+                    let stream_request_read = read_request(&mut stream);
+                
+                    match stream_request_read {
+                        Ok(request) => {
 
-                        match req_type {
-                            RouteTarget::Static => {
-                                let body = static_file::body(&req.path);
-                                let headers = static_file::headers(&req.path, &body).expect("not good");
-                                let status = match &body {
-                                    Ok(_) => StatusCode::Ok,
-                                    Err(_) => StatusCode::NotFound,
-                                };
+                            let req = Request::parser(&request).unwrap();
 
-                                let internal_response = Response {
-                                        version: req.version,
-                                        status_code: StatusCode::Other(status.code()),
-                                        reason: status.reason().to_string(),
-                                        headers: headers,
-                                        body: body.unwrap_or(Vec::new()),
+                            connection = req.headers
+                                .get("Connection")
+                                .map(|value| value.to_string())
+                                .unwrap_or("keep-alive".to_string());
+
+                            let req_type = route_resolver(&req.path).unwrap();
+
+                            match req_type {
+                                RouteTarget::Static => {
+                                    let body = static_file::body(&req.path);
+                                    let headers = static_file::headers(&req.path, &body).expect("not good");
+                                    let status = match &body {
+                                        Ok(_) => StatusCode::Ok,
+                                        Err(_) => StatusCode::NotFound,
                                     };
 
-                                let status_line = format!(
-                                    "{} {} {}",
-                                    internal_response.version.as_str(),
-                                    internal_response.status_code.code(),
-                                    internal_response.reason
-                                );
-                                
-                                let mut response = Vec::new();
+                                    let internal_response = Response {
+                                            version: req.version,
+                                            status_code: StatusCode::Other(status.code()),
+                                            reason: status.reason().to_string(),
+                                            headers: headers,
+                                            body: body.unwrap_or(Vec::new()),
+                                        };
 
-                                response.extend_from_slice(status_line.as_bytes());
-
-                                for (key, value) in &internal_response.headers {
-                                    response.extend_from_slice(
-                                        format!("{}: {}\r\n", key, value).as_bytes()
+                                    let status_line = format!(
+                                        "{} {} {}",
+                                        internal_response.version.as_str(),
+                                        internal_response.status_code.code(),
+                                        internal_response.reason
                                     );
-                                }
+                                    
+                                    let mut response = Vec::new();
 
-                                response.extend_from_slice(b"\r\n");
+                                    response.extend_from_slice(status_line.as_bytes());
 
-                                // body
-                                response.extend_from_slice(&internal_response.body);
+                                    for (key, value) in &internal_response.headers {
+                                        response.extend_from_slice(
+                                            format!("{}: {}\r\n", key, value).as_bytes()
+                                        );
+                                    }
 
-                                stream.write_all(&response).expect("Failed to write to stream")
-                            },
-                            RouteTarget::Proxy => {
-                                let mut upstream = get_connection().unwrap();
+                                    response.extend_from_slice(b"\r\n");
 
-                                write_request(&mut upstream, &req).unwrap();
+                                    // body
+                                    response.extend_from_slice(&internal_response.body);
 
-                                let response = read_response(&mut upstream).unwrap();
-                                println!("{}", response.len());
+                                    stream.write_all(&response).expect("Failed to write to stream")
+                                },
+                                RouteTarget::Proxy => {
+                                    let mut upstream = get_connection().unwrap();
 
-                                stream.write_all(&response).expect("Failed to write to stream")
-                            },
+                                    write_request(&mut upstream, &req).unwrap();
+
+                                    let response = read_response(&mut upstream).unwrap();
+
+                                    stream.write_all(&response).expect("Failed to write to stream")
+                                },
+                            }
                         }
-
+                        Err(_e) => {
+                            println!("Failed to read from client");
+                            break;
+                        }
                     }
-                    Err(e) => {
-                        println!("Failed to read from client: {}", e);
+
+                    if connection != "keep-alive" {
+                        break;
                     }
                 }
                 

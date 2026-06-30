@@ -1,6 +1,5 @@
 use std::net::TcpStream;
 use std::io::{Write, Read};
-use std::str::from_utf8;
 
 use crate::http::request::{Request, Method, Version};
 use crate::http::response::Response;
@@ -115,8 +114,6 @@ pub fn read_response(upstream: &mut TcpStream) -> Result<Vec<u8>, ProxyError> {
             break;
         }
     }
-
-    println!("{}", from_utf8(&response).unwrap());
 
     let headers = Response::header_parser(&response)
         .map_err(|_| ProxyError::ReadFailed)?;
